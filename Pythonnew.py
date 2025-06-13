@@ -8,50 +8,39 @@ import os
 # ----------------- Data Processing -------------------
 def load_productivity(data_path):
     try:
-        # Try original columns first
         cols = ['useralias', 'pipeline', 'p_week', 'processed_volume', 'processed_volume_tr',
-                'processed_time', 'processed_time_tr', 'precision_correction']  # Added precision_correction
+                'processed_time', 'processed_time_tr', 'precision_correction']
         dtype = {'useralias': 'string', 'pipeline': 'string', 'p_week': 'int32',
                 'processed_volume': 'float32', 'processed_volume_tr': 'float32',
                 'processed_time': 'float32', 'processed_time_tr': 'float32',
-                'precision_correction': 'float32'}  # Added precision_correction dtype
+                'precision_correction': 'float32'}
         df = pd.read_excel(data_path, usecols=cols, dtype=dtype)
         for c in ['processed_volume', 'processed_volume_tr', 'processed_time', 'processed_time_tr', 'precision_correction']:
             df[c] = df[c].fillna(0)
     except ValueError:
-        # If original columns not found, try loading with minimal required columns for precision report
         cols = ['useralias', 'p_week', 'precision_correction']
         df = pd.read_excel(data_path, usecols=cols)
         df['precision_correction'] = df['precision_correction'].fillna(0)
     return df
 
-
 def calculate_precision_corrections(df, weeks=None):
-    """Calculate weekly precision corrections for each auditor"""
     if weeks:
-        df = df[df['p_week'].isin(weeks)].copy()
-
-    # Group by user and week, sum precision_correction
+        df = df[df['p_week'].isin(weeks)]
     precision_data = df.groupby(['useralias', 'p_week'])['precision_correction'].sum().reset_index()
-
-    # Filter users with more than 20 corrections in a week
     high_precision = precision_data[precision_data['precision_correction'] > 20]
-
-    # Convert to dictionary format
     result = {}
     for _, row in high_precision.iterrows():
         result.setdefault(row['useralias'], {})[row['p_week']] = row['precision_correction']
-
     return result
 
 def load_quality(qual_path):
     cols = ['week', 'program', 'auditor_login', 'usecase', 'qc2_judgement', 'qc2_subreason','auditor_correction_type']
     df = pd.read_excel(qual_path, usecols=cols)
-    return df[df['program'] == 'RDR'].copy()
+    return df[df['program'] == 'RDR']
 
 def user_prod_dict(df, user, weeks=None):
-    dfu = df[df['useralias'] == user].copy()
-    if weeks: dfu = dfu[dfu['p_week'].isin(weeks)].copy()
+    dfu = df[df['useralias'] == user]
+    if weeks: dfu = dfu[dfu['p_week'].isin(weeks)]
     dfu['total_volume'] = dfu['processed_volume'] + dfu['processed_volume_tr']
     dfu['total_time'] = dfu['processed_time'] + dfu['processed_time_tr']
     g = dfu.groupby(['pipeline', 'p_week'], as_index=False)[['total_volume','total_time']].sum()
@@ -59,7 +48,7 @@ def user_prod_dict(df, user, weeks=None):
     return g.pivot(index='pipeline', columns='p_week', values='productivity').fillna(0).to_dict('index')
 
 def all_prod_dict(df, weeks=None):
-    if weeks: df = df[df['p_week'].isin(weeks)].copy()
+    if weeks: df = df[df['p_week'].isin(weeks)]
     df['total_volume'] = df['processed_volume'] + df['processed_volume_tr']
     df['total_time'] = df['processed_time'] + df['processed_time_tr']
     g = df.groupby(['useralias','pipeline','p_week'], as_index=False)[['total_volume','total_time']].sum()
@@ -88,8 +77,8 @@ def productivity_percentiles(allprod, weeks):
     return out
 
 def user_quality_dict(df, user, weeks=None):
-    dfu = df[df['auditor_login'] == user].copy()
-    if weeks: dfu = dfu[dfu['week'].isin(weeks)].copy()
+    dfu = df[df['auditor_login'] == user]
+    if weeks: dfu = dfu[dfu['week'].isin(weeks)]
     d = {}
     for (pipe, week), grp in dfu.groupby(['usecase','week']):
         total = len(grp)
@@ -99,7 +88,7 @@ def user_quality_dict(df, user, weeks=None):
     return d
 
 def all_quality_dict(df, weeks=None):
-    if weeks: df = df[df['week'].isin(weeks)].copy()
+    if weeks: df = df[df['week'].isin(weeks)]
     d = {}
     for (aud, pipe, week), grp in df.groupby(['auditor_login','usecase','week']):
         total = len(grp)
@@ -108,33 +97,17 @@ def all_quality_dict(df, weeks=None):
         d.setdefault(aud, {}).setdefault(pipe, {})[week] = {'score': score, 'err': err, 'total': total}
     return d
 
-
-def analyze_timesheet_missing(timesheet_path, week, user):  # Added user parameter
-    """Analyze timesheet missing data for a specific week and user"""
+def analyze_timesheet_missing(timesheet_path, week, user):
     try:
-        # Read Excel file
         df = pd.read_excel(timesheet_path)
-
-        # Make sure the required columns exist
         required_columns = ['work_date', 'week', 'timesheet_missing', 'loginid']
         missing_cols = [col for col in required_columns if col not in df.columns]
         if missing_cols:
             raise ValueError(f"Missing required columns: {', '.join(missing_cols)}")
-
-        # Filter for the specified week and user
-        weekly_data = df[(df['week'] == week) & (df['loginid'] == user)].copy()
-
-        # Convert work_date to datetime if it's not already
+        weekly_data = df[(df['week'] == week) & (df['loginid'] == user)]
         weekly_data['work_date'] = pd.to_datetime(weekly_data['work_date'])
-
-        # Filter for missing time > 35 minutes and select only required columns
         daily_missing = weekly_data[weekly_data['timesheet_missing'] > 35][['work_date', 'timesheet_missing']]
-
-        # Sort by date
-        daily_missing = daily_missing.sort_values('work_date')
-
-        return daily_missing if not daily_missing.empty else None
-
+        return daily_missing.sort_values('work_date') if not daily_missing.empty else None
     except Exception as exc:
         print(f"Error processing timesheet: {str(exc)}")
         return None
@@ -158,8 +131,8 @@ def quality_percentiles(allqual, weeks):
     return out
 
 def qc2_subreason_analysis(df, user, weeks=None):
-    dfu = df[df['auditor_login'] == user].copy()
-    if weeks: dfu = dfu[dfu['week'].isin(weeks)].copy()
+    dfu = df[df['auditor_login'] == user]
+    if weeks: dfu = dfu[dfu['week'].isin(weeks)]
     out = {}
     for (pipe, week), grp in dfu.groupby(['usecase','week']):
         incorrect = grp[grp['qc2_judgement'].isin(['AUDITOR_INCORRECT','BOTH_INCORRECT'])]
@@ -172,7 +145,6 @@ def qc2_subreason_analysis(df, user, weeks=None):
         }
     return out
 
-# ------------- Table/Color Utilities -------------
 def percentile_label(val, percentiles):
     if percentiles is None or val == 0:
         return "-"
@@ -181,21 +153,21 @@ def percentile_label(val, percentiles):
     if val >= percentiles.get('p50', 0): return "P50-P75"
     if val >= percentiles.get('p30', 0): return "P30-P50"
     return "<P30"
+
 def pct_bg_fg(bench):
     if bench == "P90 +":
-        return "#006400", "white"  # strong/dark green
+        return "#006400", "white"
     elif bench == "P75-P90":
-        return "#90EE90", "black"  # light green
+        return "#90EE90", "black"
     elif bench == "P50-P75":
-        return "#FFD700", "black"  # bright yellow
+        return "#FFD700", "black"
     elif bench == "P30-P50":
-        return "#ffc107", "black"  # yellow
+        return "#ffc107", "black"
     elif bench == "<P30":
-        return "#dc3545", "white"  # red
+        return "#dc3545", "white"
     else:
-        return "#ffffff", "black"  # white default
+        return "#ffffff", "black"
 
-# ------- Table with Latest Week Benchmark Column -------
 def html_metric_value_table_with_latest(data, weeks, percentiles, section="Quality", is_quality=False):
     latest_week = weeks[-1]
     ths = "".join(
@@ -243,13 +215,11 @@ def html_metric_value_table_with_latest(data, weeks, percentiles, section="Quali
       {rows}
     </table>"""
 
-
 def html_precision_correction_table(data, weeks):
     ths = "".join(
         f"<th style='padding:6px;border:1px solid #ccc;background:#2C3E50;color:white;text-align:center;font-size:13px;'>{w}</th>"
         for w in weeks
     )
-
     rows = ""
     for user in sorted(data):
         tds = ""
@@ -258,9 +228,7 @@ def html_precision_correction_table(data, weeks):
             disp = f"{val:.0f}" if val else "-"
             color = "#222222" if disp != "-" else "#999"
             tds += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;color:{color};'>{disp}</td>"
-
         rows += f"<tr><td style='padding:6px;border:1px solid #ddd;font-size:13px;text-align:left;'>{user}</td>{tds}</tr>"
-
     return f"""
     <table style='border-collapse:collapse;width:40%;font-family:Segoe UI,Arial,sans-serif;border:2px solid #000000;'>
       <tr>
@@ -275,12 +243,9 @@ def html_precision_correction_table(data, weeks):
       {rows}
     </table>"""
 
-
 def html_timesheet_missing_table(timesheet_data):
-    """Generate HTML table for timesheet missing data"""
     if timesheet_data is None or timesheet_data.empty:
         return "<p>No timesheet missing data found exceeding 35 minutes.</p>"
-
     try:
         rows = ""
         for _, row in timesheet_data.iterrows():
@@ -288,7 +253,6 @@ def html_timesheet_missing_table(timesheet_data):
             missing = f"{row['timesheet_missing']:.2f}"
             rows += f"<tr><td style='padding:6px;border:1px solid #ddd;font-size:13px;text-align:left;'>{work_date}</td>"
             rows += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;'>{missing}</td></tr>"
-
         return f"""
         <table style='border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;border:2px solid #000000;'>
           <tr>
@@ -339,13 +303,10 @@ def html_metric_pct_table(data, weeks, percentiles, section="Quality"):
       {rows}
     </table>"""
 
-
 def calculate_correction_type_data(df, user, weeks=None):
-    """Calculate correction type metrics for a user"""
-    dfu = df[df['auditor_login'] == user].copy()
+    dfu = df[df['auditor_login'] == user]
     if weeks:
-        dfu = dfu[dfu['week'].isin(weeks)].copy()
-
+        dfu = dfu[dfu['week'].isin(weeks)]
     correction_data = {}
     for (correction_type, week), grp in dfu.groupby(['auditor_correction_type', 'week']):
         total = len(grp)
@@ -427,13 +388,11 @@ def html_qc2_reason_pct_table(subreason_data, weeks):
       {rows}
     </table>"""
 
-
 def html_correction_type_quality_table(correction_data, weeks):
     ths = "".join(
         f"<th style='padding:6px;border:1px solid #ccc;background:#2C3E50;color:white;text-align:center;font-size:13px;'>{w}</th>"
         for w in weeks
     )
-
     rows = ""
     for correction_type in sorted(correction_data):
         tds = ""
@@ -445,9 +404,7 @@ def html_correction_type_quality_table(correction_data, weeks):
             disp = f"{val:.2%} ({err}/{total})" if total else "-"
             color = "#222222" if disp != "-" else "#999"
             tds += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;color:{color};'>{disp}</td>"
-
         rows += f"<tr><td style='padding:6px;border:1px solid #ddd;font-size:13px;text-align:left;'>{correction_type}</td>{tds}</tr>"
-
     return f"""
     <table style='border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;border:2px solid #000000;'>
       <tr>
@@ -462,13 +419,11 @@ def html_correction_type_quality_table(correction_data, weeks):
       {rows}
     </table>"""
 
-
 def html_correction_type_count_table(correction_data, weeks):
     ths = "".join(
         f"<th style='padding:6px;border:1px solid #ccc;background:#2C3E50;color:white;text-align:center;font-size:13px;'>{w}</th>"
         for w in weeks
     )
-
     rows = ""
     for correction_type in sorted(correction_data):
         tds = ""
@@ -478,9 +433,7 @@ def html_correction_type_count_table(correction_data, weeks):
             disp = str(count) if count else "-"
             color = "#222222" if disp != "-" else "#999"
             tds += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;color:{color};'>{disp}</td>"
-
         rows += f"<tr><td style='padding:6px;border:1px solid #ddd;font-size:13px;text-align:left;'>{correction_type}</td>{tds}</tr>"
-
     return f"""
     <table style='border-collapse:collapse;width:100%;font-family:Segoe UI,Arial,sans-serif;border:2px solid #000000;'>
       <tr>
@@ -495,25 +448,13 @@ def html_correction_type_count_table(correction_data, weeks):
       {rows}
     </table>"""
 
-def html_side_by_side_tables(left, right):
-    return f"""
-    <table style="width:100%;border:none;">
-      <tr>
-        <td style="width:49%;vertical-align:top;padding-right:8px;">{left}</td>
-        <td style="width:2%"></td>
-        <td style="width:49%;vertical-align:top;padding-left:8px;">{right}</td>
-      </tr>
-    </table>
-    """
-
 def compose_html(user, prod_table, prod_pct_table, qual_table, qual_pct_table, qc2_left, qc2_right,
-                correction_quality_table, correction_count_table,timesheet_table=""):
+                correction_quality_table, correction_count_table, timesheet_table=""):
     return f"""
     <html>
     <body style="margin:0;padding:20px;background:#f9f9fb;font-family:Segoe UI,Arial,sans-serif;color:#333;line-height:1.4;">
         <h2 style="font-size:18px;margin-bottom:10px;font-weight:normal;">RDR Productivity & Quality Metrics Report</h2>
         <p style="margin-top:0;font-size:13px;">Hi {user}, here are your weekly metrics:</p>
-
         <h3 style="font-size:14px;margin-top:20px;font-weight:normal;">Productivity</h3>
         <table style="width:100%;border:none;margin-bottom:24px;">
             <tr>
@@ -522,7 +463,6 @@ def compose_html(user, prod_table, prod_pct_table, qual_table, qual_pct_table, q
                 <td style="width:49%;vertical-align:top;padding-left:8px;">{prod_pct_table}</td>
             </tr>
         </table>
-
         <h3 style="font-size:14px;margin-top:20px;font-weight:normal;">Quality</h3>
         <table style="width:100%;border:none;margin-bottom:24px;">
             <tr>
@@ -531,7 +471,6 @@ def compose_html(user, prod_table, prod_pct_table, qual_table, qual_pct_table, q
                 <td style="width:49%;vertical-align:top;padding-left:8px;">{qual_pct_table}</td>
             </tr>
         </table>
-
         <h3 style="font-size:14px;margin-top:20px;font-weight:normal;">QC2 Subreason Analysis</h3>
         <table style="width:100%;border:none;margin-bottom:24px;">
             <tr>
@@ -540,7 +479,6 @@ def compose_html(user, prod_table, prod_pct_table, qual_table, qual_pct_table, q
                 <td style="width:49%;vertical-align:top;padding-left:8px;">{qc2_right}</td>
             </tr>
         </table>
-
         <h3 style="font-size:14px;margin-top:20px;font-weight:normal;">Correction Type Analysis</h3>
         <table style="width:100%;border:none;margin-bottom:24px;">
             <tr>
@@ -549,7 +487,7 @@ def compose_html(user, prod_table, prod_pct_table, qual_table, qual_pct_table, q
                 <td style="width:49%;vertical-align:top;padding-left:8px;">{correction_quality_table}</td>
             </tr>
         </table>
-
+        {timesheet_table}
         <hr style="margin:24px 0;">
         <p style="font-size:11px;color:#555;">
             <i>Benchmarks: "P90 +" (top 10%), "P75-P90", "P50-P75", "P30-P50", "&lt;P30"<br>
