@@ -122,20 +122,19 @@ def percentile_label(val, percentiles):
     if val >= percentiles.get('p50', 0): return "P50-P75"
     if val >= percentiles.get('p30', 0): return "P30-P50"
     return "<P30"
-
 def pct_bg_fg(bench):
     if bench == "P90 +":
-        return "#43A047", "white"
+        return "#28a745", "white"  # green
     elif bench == "P75-P90":
-        return "#81C784", "#222"
+        return "#17a2b8", "white"  # teal
     elif bench == "P50-P75":
-        return "#FFF176", "#222"
+        return "#ffc107", "black"  # yellow
     elif bench == "P30-P50":
-        return "#FFD54F", "#222"
+        return "#fd7e14", "white"  # orange
     elif bench == "<P30":
-        return "#E57373", "white"
+        return "#dc3545", "white"  # red
     else:
-        return "#fff", "#222"
+        return "#ffffff", "black"  # white default
 
 # ------- Table with Latest Week Benchmark Column -------
 def html_metric_value_table_with_latest(data, weeks, percentiles, section="Quality", is_quality=False):
@@ -158,15 +157,17 @@ def html_metric_value_table_with_latest(data, weeks, percentiles, section="Quali
             else:
                 val = data[pipe].get(w, 0)
                 disp = f"{val:.2f}" if val else "-"
-            color = "#00ACC1" if disp != "-" else "#999"
+            color = "#222222" if disp != "-" else "#999"
             tds += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;color:{color};'>{disp}</td>"
 
         val = data[pipe].get(latest_week, 0)
         val_scalar = val['score'] if is_quality and isinstance(val, dict) and 'score' in val else val
         pctls = percentiles[latest_week].get(pipe, None) if percentiles and latest_week in percentiles else None
         bench = percentile_label(val_scalar, pctls)
-        color = "#00ACC1" if bench != "-" else "#999"
-        tds += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;color:{color};'>{bench if bench != '-' else '-'}</td>"
+        if bench is None:
+            bench = "-"
+        bg_color, text_color = pct_bg_fg(bench)
+        tds += f"<td style='padding:6px;border:1px solid #ddd;text-align:center;font-size:13px;background-color:{bg_color};color:{text_color};'>{bench if bench != '-' else '-'}</td>"
         rows += f"<tr><td style='padding:6px;border:1px solid #ddd;font-size:13px;text-align:left;'>{pipe}</td>{tds}</tr>"
 
     return f"""
@@ -196,8 +197,10 @@ def html_metric_pct_table(data, weeks, percentiles, section="Quality"):
             val_scalar = val['score'] if isinstance(val, dict) and 'score' in val else val
             pctls = percentiles[w].get(pipe, None) if percentiles and w in percentiles else None
             bench = percentile_label(val_scalar, pctls)
-            color = "#00ACC1" if bench != "-" else "#999"
-            tds += f"<td style='padding:6px;border:1px solid #ccc;text-align:center;font-size:13px;color:{color};'>{bench}</td>"
+            if bench is None:
+                bench = "-"
+            bg_color, text_color = pct_bg_fg(bench)
+            tds += f"<td style='padding:6px;border:1px solid #ccc;text-align:center;font-size:13px;background-color:{bg_color};color:{text_color};'>{bench}</td>"
         rows += f"<tr><td style='padding:6px;border:1px solid #ccc;font-size:13px;text-align:left;'>{pipe}</td>{tds}</tr>"
 
     return f"""
@@ -232,7 +235,7 @@ def html_qc2_reason_value_table(subreason_data, weeks):
                 for pipe in subreason_data if w in subreason_data[pipe]
             )
             disp = str(count) if count else "-"
-            color = "#00ACC1" if disp != "-" else "#999"
+            color = "#222222" if disp != "-" else "#999"
             tds += f"<td style='padding:6px;border:1px solid #ccc;text-align:center;font-size:13px;color:{color};'>{disp}</td>"
         rows += f"<tr><td style='padding:6px;border:1px solid #ccc;font-size:13px;text-align:left;'>{sub}</td>{tds}</tr>"
     return f"""
@@ -266,7 +269,7 @@ def html_qc2_reason_pct_table(subreason_data, weeks):
             count = sum(subreason_data[pipe][w]['counts'].get(sub, 0) for pipe in subreason_data if w in subreason_data[pipe])
             perc = (count / total * 100) if total else 0
             disp = f"{perc:.1f}%" if total else "-"
-            color = "#00ACC1" if disp != "-" else "#999"
+            color = "#222222" if disp != "-" else "#999"
             tds += f"<td style='padding:6px;border:1px solid #ccc;text-align:center;font-size:13px;color:{color};'>{disp}</td>"
         rows += f"<tr><td style='padding:6px;border:1px solid #ccc;font-size:13px;text-align:left;'>{sub}</td>{tds}</tr>"
     return f"""
