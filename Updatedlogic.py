@@ -2654,7 +2654,7 @@ class ReporterApp(tk.Tk):
                     self.log("ℹ️ No high precision corrections found for any user")
                     return False
 
-                self.log(f"   Processing precision reports for {len(precision_data)} users...")
+                self.log(f"�� Processing precision reports for {len(precision_data)} users...")
 
                 # Process each user
                 for user in precision_data:
@@ -2688,7 +2688,7 @@ class ReporterApp(tk.Tk):
                         continue
 
                 # Log completion
-                self.log("   Bulk precision correction processing completed!")
+                self.log("�� Bulk precision correction processing completed!")
                 return True
 
             except Exception as data_exc:
